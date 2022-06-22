@@ -91,11 +91,11 @@ typora-root-url: pic
 
 - 创建Service和StatefulSet
 
-    ![](/apply-service-statefulset.png)
+     ![](/apply-service-statefulset.png)
 
 - 查看创建成功的StatefulSet的Events
 
-    ![](/stateful-event.png)
+     ![](/stateful-event.png)
 
   - StatefulSet给它所管理的Pod名称做了编号：`<statefulset name>-<ordinal index>`
   - 编号从0开始，创建顺序是按照编号顺序进行的，在web-0进入Ready状态时，web-1会一直处于Pending状态
@@ -103,7 +103,7 @@ typora-root-url: pic
 
 - 查看Pod的hostname
 
-    ![](/pod-hostname.png)
+     ![](/pod-hostname.png)
 
   - 每个Pod的hostname都等于Pod自己的名字
 
@@ -121,12 +121,12 @@ typora-root-url: pic
 
   - 使用`kubectl get pod -w -l app=nginx`,-w参数表示watch，实时查看状态。
 
-      ![](/watch-statefulSet-delete.png)
+       ![](/watch-statefulSet-delete.png)
      
      - 两个Pod删除后，按照原顺序重新创建了两个Pod，名字保持一致
 
 - 结论：当触发了滚动更新时，更新会按照一定的编号顺序。但是如果只是删除了某一个Pod，就只重建当前的Pod就够了。
-  - 疑问：这里顺序不就乱了吗？
+  - 疑问：这里Pod启动的顺序不就乱了吗？
 
 
 
@@ -141,3 +141,153 @@ typora-root-url: pic
 - PVC需要绑定PV才能使用。
 
 ## 验证存储状态
+
+- 首先声明一个想要的PVC
+
+  ```yaml
+  kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: pv-claim
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+  ```
+
+  - PVC对象中不需要任何关于Volume的细节，storage表示大小至少是1GiB
+  - accessModes值是ReadWriteOnce，表示挂载方式是可读可写，并且只能挂载在一个节点上。
+
+- 在Pod的声明中使用这个PVC
+
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: pv-pod
+  spec:
+    containers:
+      - name: pv-container
+        image: nginx
+        ports:
+          - containerPort: 80
+            name: "http-server"
+        volumeMounts:
+          - mountPath: "/usr/share/nginx/html"
+            name: pv-storage
+    volumes:
+      - name: pv-storage
+        persistentVolumeClaim:
+          claimName: pv-claim
+  ```
+
+  - Pod中的spec.volumes直接说明使用哪个PVC就行
+  - kubernetes会为PVC找到一个合适的Volume
+  - 这些合适的PV由运维人员提供
+
+- 使用hostPath定义一个PV
+
+  ```yaml
+  kind: PersistentVolume
+  apiVersion: v1
+  metadata:
+    name: pv-volume
+    labels:
+      type: local
+  spec:
+    storageClassName: manual
+    capacity:
+      storage: 1Gi
+    accessModes:
+      - ReadWriteOnce
+    persistentVolumeReclaimPolicy: Recycle
+    hostPath:
+      path: /test-hostPath-volume
+  ```
+
+- 有了PVC的概念，StatefulSet可以很简单的控制Pod和PVC
+
+  ```yaml
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: web
+  spec:
+    serviceName: "nginx"
+    replicas: 2
+    selector:
+      matchLabels:
+        app: nginx
+    template:
+      metadata:
+        labels:
+          app: nginx
+      spec:
+        containers:
+          - name: nginx
+            image: nginx:1.9.1
+            ports:
+              - containerPort: 80
+                name: web
+            volumeMounts:
+              - name: www
+                mountPath: /usr/share/nginx/html
+    volumeClaimTemplates:
+      - metadata:
+          name: www
+        spec:
+          accessModes:
+            - ReadWrite
+          storageClassName: manual
+          resources:
+            requests:
+              storage: 1Gi
+  ```
+
+  - volumeClaimTemplates表示PVC的模版
+  - 在Pod定义中使用了www的PVC
+
+- 创建PV和StatefulSet
+
+   ![](/get-pvc.png)
+
+  - PVC的命名规则：`<PVC name>-<StatefulSet name>-编号`
+
+
+
+
+
+#### 原理
+
+- 当Pod被删除时，但是其对应的PVC和PV不会删除，新的Pod创建后，会找到编号对应的PVC从而找到之前的Volume。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
