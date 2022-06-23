@@ -3,7 +3,7 @@ typora-root-url: pic
 ---
 
 - 为什么需要StatefulSet?
-  - Deployment管理Pod时，它认为所有的Pod都是一样的，没有顺序。需要时就创建一个Pod，不需要时就任意删除一个Pod
+  - Deployment管理Pod时，它认为所有的Pod都是一样的，没有顺序。需要时就创建一个Pod，不需要时就任意删除其中一个Pod
   - 但是实际应用中，Pod之间往往是有依赖关系的，比如主从关系、主备关系。
   - 另外还有数据存储类的应用，它的多个实例（Pod）会在本地磁盘上保存一份数据。而这些实例被杀掉之后，即便重建出来，实例与数据之间的对应关系也已经丢失了，导致应用失败。
   - 这种实例之间有不对等关系的，被称为“有状态应用”。
@@ -53,7 +53,7 @@ typora-root-url: pic
 
   - 关键是clusterIP=None，证明不需要VIP。
 
-  - 这个Headless Service所代理的所有IP地址，都会绑定在这样格式的DNS记录：
+  - 这个Headless Service所代理的所有Pod的IP地址，都会绑定在这样格式的DNS记录：
 
     `<pod-name>.<svc-name>.<namespace>.svc.cluster.local`
 
@@ -91,11 +91,11 @@ typora-root-url: pic
 
 - 创建Service和StatefulSet
 
-     ![](/apply-service-statefulset.png)
+  ![](/apply-service-statefulset.png)
 
 - 查看创建成功的StatefulSet的Events
 
-     ![](/stateful-event.png)
+  ![](/stateful-event.png)
 
   - StatefulSet给它所管理的Pod名称做了编号：`<statefulset name>-<ordinal index>`
   - 编号从0开始，创建顺序是按照编号顺序进行的，在web-0进入Ready状态时，web-1会一直处于Pending状态
@@ -103,7 +103,7 @@ typora-root-url: pic
 
 - 查看Pod的hostname
 
-     ![](/pod-hostname.png)
+  ![](/pod-hostname.png)
 
   - 每个Pod的hostname都等于Pod自己的名字
 
@@ -121,12 +121,11 @@ typora-root-url: pic
 
   - 使用`kubectl get pod -w -l app=nginx`,-w参数表示watch，实时查看状态。
 
-       ![](/watch-statefulSet-delete.png)
-     
+    ![](/watch-statefulSet-delete.png)
+    
      - 两个Pod删除后，按照原顺序重新创建了两个Pod，名字保持一致
 
-- 结论：当触发了滚动更新时，更新会按照一定的编号顺序。但是如果只是删除了某一个Pod，就只重建当前的Pod就够了。
-  - 疑问：这里Pod启动的顺序不就乱了吗？
+- 结论：当触发了滚动更新时，更新会按照一定的编号顺序（实操看是反这的顺序 先web-1后web-0）。但是如果只是删除了某一个Pod，就只重建当前的Pod就够了。
 
 
 
@@ -151,14 +150,14 @@ typora-root-url: pic
     name: pv-claim
   spec:
     accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
     resources:
       requests:
         storage: 1Gi
   ```
 
   - PVC对象中不需要任何关于Volume的细节，storage表示大小至少是1GiB
-  - accessModes值是ReadWriteOnce，表示挂载方式是可读可写，并且只能挂载在一个节点上。
+  - accessModes值是ReadWriteMany，ReadWriteOnce 表示挂载方式是可读可写，并且只能挂载在一个节点上。
 
 - 在Pod的声明中使用这个PVC
 
@@ -201,7 +200,7 @@ typora-root-url: pic
     capacity:
       storage: 1Gi
     accessModes:
-      - ReadWriteOnce
+      - ReadWriteMany
     persistentVolumeReclaimPolicy: Recycle
     hostPath:
       path: /test-hostPath-volume
@@ -239,7 +238,7 @@ typora-root-url: pic
           name: www
         spec:
           accessModes:
-            - ReadWrite
+            - ReadWriteMany
           storageClassName: manual
           resources:
             requests:
@@ -249,15 +248,30 @@ typora-root-url: pic
   - volumeClaimTemplates表示PVC的模版
   - 在Pod定义中使用了www的PVC
 
-- 创建PV和StatefulSet
+- 创建两个PV，可供两个Pod的PVC挂载（为什么需要两个？等学完存储相关的再回来解答）
 
-   ![](/get-pvc.png)
+     ![](/get-pv.png)
 
-  - PVC的命名规则：`<PVC name>-<StatefulSet name>-编号`
+- 创建StatefulSet，同时PVC被创建
 
+     ![](/get-pvc.png)
 
+    PVC实例命名规则：`<PVC name>-<StatefulSet name>-编号`
 
+- 在两个Pod中的/usr/share/nginx/html/index.html（Volume的挂载路径）写入Pod的hostname
 
+   ![](/write-to-pod-volume.png)
+
+- 使用shell脚本（方便）从Pod中读刚刚写入的文字
+
+  ```shell
+  #!/bin/bash
+  for i in 0 1; do kubectl exec -it web-$i -- sh -c 'cat /usr/share/nginx/html/index.html' ; done
+  ```
+
+   ![](/shell-read-pod-volume.png)
+
+- 实操失败，怀疑是两个PVC用的同一个PV，学完存储再过来完善
 
 #### 原理
 
