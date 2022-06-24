@@ -91,11 +91,11 @@ typora-root-url: pic
 
 - 创建Service和StatefulSet
 
-  ![](/apply-service-statefulset.png)
+   ![](/apply-service-statefulset.png)
 
 - 查看创建成功的StatefulSet的Events
 
-  ![](/stateful-event.png)
+   ![](/stateful-event.png)
 
   - StatefulSet给它所管理的Pod名称做了编号：`<statefulset name>-<ordinal index>`
   - 编号从0开始，创建顺序是按照编号顺序进行的，在web-0进入Ready状态时，web-1会一直处于Pending状态
@@ -103,7 +103,7 @@ typora-root-url: pic
 
 - 查看Pod的hostname
 
-  ![](/pod-hostname.png)
+   ![](/pod-hostname.png)
 
   - 每个Pod的hostname都等于Pod自己的名字
 
@@ -121,7 +121,7 @@ typora-root-url: pic
 
   - 使用`kubectl get pod -w -l app=nginx`,-w参数表示watch，实时查看状态。
 
-    ![](/watch-statefulSet-delete.png)
+     ![](/watch-statefulSet-delete.png)
     
      - 两个Pod删除后，按照原顺序重新创建了两个Pod，名字保持一致
 
@@ -206,6 +206,8 @@ typora-root-url: pic
       path: /test-hostPath-volume
   ```
 
+  - spec.hostPath表示被挂载的本地目录
+
 - 有了PVC的概念，StatefulSet可以很简单的控制Pod和PVC
 
   ```yaml
@@ -248,19 +250,25 @@ typora-root-url: pic
   - volumeClaimTemplates表示PVC的模版
   - 在Pod定义中使用了www的PVC
 
-- 创建两个PV，可供两个Pod的PVC挂载（为什么需要两个？等学完存储相关的再回来解答）
+- 创建两个PV，可供两个Pod的PVC挂载
 
-     ![](/get-pv.png)
+     - 修改PV的yaml文件中metedata.name以及spec.hostPath定义两个PV
+
+      ![](/get-pv.png)
 
 - 创建StatefulSet，同时PVC被创建
 
-     ![](/get-pvc.png)
+      ![](/get-pvc.png)
 
-    PVC实例命名规则：`<PVC name>-<StatefulSet name>-编号`
+     PVC实例命名规则：`<PVC name>-<StatefulSet name>-编号`
 
 - 在两个Pod中的/usr/share/nginx/html/index.html（Volume的挂载路径）写入Pod的hostname
 
-   ![](/write-to-pod-volume.png)
+   `kubectl exec web-0 -- sh -c 'echo hello $(hostname) > /usr/share/nginx/html/index.html'`
+
+   `kubectl exec web-1 -- sh -c 'echo hello $(hostname) > /usr/share/nginx/html/index.html'`
+
+    ![](/write-to-pod-volume.png)
 
 - 使用shell脚本（方便）从Pod中读刚刚写入的文字
 
@@ -271,25 +279,47 @@ typora-root-url: pic
 
    ![](/shell-read-pod-volume.png)
 
-- 实操失败，怀疑是两个PVC用的同一个PV，学完存储再过来完善
+- 删掉StatefulSet管理的Pod，重新读之前在Pod写入的文字
+
+    ![](/shell-read-pod-volume-after-deletePod.png)
+
+   - 能发现再次读取，还是Pod删除之前的内容，说明StatefulSet具有对于存储状态的保存
 
 #### 原理
 
-- 当Pod被删除时，但是其对应的PVC和PV不会删除，新的Pod创建后，会找到编号对应的PVC从而找到之前的Volume。
+- 当Pod被删除时，其对应的PVC和PV不会删除，新的Pod创建后，会找到编号对应的PVC从而找到之前的Volume。
 
 
 
 
 
+statefulSet还支持金丝雀发布或者灰度发布
+
+- 对于正在运行中的StatefulSet，支持打补丁的形式
+
+  ```shell
+  kubectl patch statefulset mysql --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value":"mysql:5.7.23"}]'
+  ```
+
+  - 表示替换掉目前StatefulSet中的`spec.template.spec.containers`中第一个容器的image字段
+
+- 当触发了滚动更新后，StatefulSet Controller会按照与Pod编号相反的顺序，从最后一个Pod开始，逐一更新这个StatefulSet管理的每一个Pod，当出现更新错误是，就会停止滚动更新
+
+- 此外还能指定某一部分不会被更新到最新的版本，这个字段是h `spec.updateStrategy.rollingUpdate.partition`
+
+  ```shell
+  kubectl patch statefulset mysql -p '{"spec":{"updateStrategy":{"type":"RollingUpdate","rollingUpdate":{"partition":2}}}}'
+  ```
+
+  - 表示只有编号大于2的Pod才会被更新
 
 
 
 
 
+#### 问题
 
-
-
-
+- 为什么滚动更新时要逆着Pod编号顺序来？
 
 
 
