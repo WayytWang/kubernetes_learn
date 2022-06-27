@@ -50,7 +50,7 @@ DaemonSet的主要作用是在kubernetes集群里，运行一个Daemon Pod，这
           effect: NoSchedule
         containers:
         - name: fluentd-elasticsearch
-          image: k8s.gcr.io/fluentd-elasticsearch:1.20
+          image: mirrorgooglecontainers/fluentd-elasticsearch:v2.0.0
           resources:
             limits:
               memory: 200Mi
@@ -155,9 +155,15 @@ DaemonSet的主要作用是在kubernetes集群里，运行一个Daemon Pod，这
 
 ## 实际create一个DaemonSet对象
 
-- 创建
-- 查看Pod
+- 创建 `kubectl apply -f fluentd-elasticsearch.yaml `
+
+- 查看Pod `kubectl get po -n kube-system -l name=fluentd-elasticsearch `
+
+    ![](D:\note\note\wang\kubernetes_learn\pic\getpo-in-daemonset.png)
+
 - 查看DaemonSet
+
+    ![](D:\note\note\wang\kubernetes_learn\pic\getds.png)
 
 
 
@@ -168,11 +174,13 @@ DaemonSet的主要作用是在kubernetes集群里，运行一个Daemon Pod，这
     - `--record`会记录本次运行的指令
   - 查看滚动更新的过程：`kubectl rollout status ds/fluentd-elasticsearch -n kube-system`
   - 查看历史版本：`kubectl rollout history daemonset fluentd-elasticsearch -n kube-system`
-  - 可以回滚历史版本
+  - 可以回滚历史版本 `kubectl rollout undo ds/fluentd-elasticsearch --to-revision=2`
   
 - DeploymentSet是靠ReplicaSet实现的版本管理，一个版本对应一个ReplicaSet。
 
 - DaemonSet靠的是ControllerRevision，专门用来记录某种Controller对象的版本。刚刚部署的DaemonSet也有对应的ControllerRevision。
+
+   ![](D:\note\note\wang\kubernetes_learn\pic\get-controllerrevision.png)
 
 - StatefulSet也是依靠ControllerRevision做版本管理。
 
