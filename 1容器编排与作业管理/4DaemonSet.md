@@ -1,3 +1,7 @@
+---
+typora-root-url: pic
+---
+
 DaemonSet的主要作用是在kubernetes集群里，运行一个Daemon Pod，这个Pod有如下三个特征：
 
 - 这个Pod运行在kubernetes集群里的每一个节点（Node）上
@@ -159,11 +163,11 @@ DaemonSet的主要作用是在kubernetes集群里，运行一个Daemon Pod，这
 
 - 查看Pod `kubectl get po -n kube-system -l name=fluentd-elasticsearch `
 
-    ![](D:\note\note\wang\kubernetes_learn\pic\getpo-in-daemonset.png)
+    ![](getpo-in-daemonset.png)
 
 - 查看DaemonSet
 
-    ![](D:\note\note\wang\kubernetes_learn\pic\getds.png)
+    ![](getds.png)
 
 
 
@@ -180,7 +184,7 @@ DaemonSet的主要作用是在kubernetes集群里，运行一个Daemon Pod，这
 
 - DaemonSet靠的是ControllerRevision，专门用来记录某种Controller对象的版本。刚刚部署的DaemonSet也有对应的ControllerRevision。
 
-   ![](D:\note\note\wang\kubernetes_learn\pic\get-controllerrevision.png)
+    ![](/get-controllerrevision.png)
 
 - StatefulSet也是依靠ControllerRevision做版本管理。
 
