@@ -2,6 +2,8 @@
 typora-root-url: pic
 ---
 
+
+
 Deployment、StatefulSet、DaemonSet这三个编排概念编排的对象，都是“在线业务”，即Long Running Task。
 
 但是有一类作业叫“离线业务”，或者叫做Batch Job（计算业务），这种业务在计算完成后就直接退出了，而Deployment这些会不断重启，所以不适用。
@@ -34,7 +36,7 @@ spec:
 
 - Job控制的Pod不需要使用spec.selector
 
-      ![](describe-job.png)
+   ![](describe-job.png)
 
   - 这个Job管理的Pod自动加上了一个Label
     - controller-uid = <随机字符串>
